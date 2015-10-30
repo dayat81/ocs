@@ -339,8 +339,8 @@ void *handlecommand(void *sock){
                      itr != c.MemberEnd(); ++itr)
                 {
                     const char* rgkey=itr->name.GetString();
-                    printf("Type of member %s is %i\n",
-                           itr->name.GetString(), itr->value.GetInt());
+                    //printf("Type of member %s is %i\n",
+                      //     itr->name.GetString(), itr->value.GetInt());
                     if(strcmp(rgkey, params[2]) == 0){
                         a.Erase(&c);
                     }
@@ -386,8 +386,8 @@ void *handlecommand(void *sock){
                      itr != c.MemberEnd(); ++itr)
                 {
                     const char* rgkey=itr->name.GetString();
-                    printf("Type of member %s is %i\n",
-                           itr->name.GetString(), itr->value.GetInt());
+                    //printf("Type of member %s is %i\n",
+                      //     itr->name.GetString(), itr->value.GetInt());
                     if(strcmp(rgkey, params[2]) == 0){
                         a.Erase(&c);
                     }
