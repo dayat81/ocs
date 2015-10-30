@@ -226,6 +226,18 @@ void *handlecommand(void *sock){
         if(memcmp( params[0], "quit", strlen( "quit") ) == 0){
             close(newsock);
         
+        }else if( memcmp( params[0], "setslice", strlen( "setslice") ) == 0) {
+            //char result[1024];
+            bzero(result, 1024);
+            std::string val;
+            //cek if default exist the copy to msid
+            std::string valdef;
+            rocksdb::Status status = db->Put(rocksdb::WriteOptions(),"slice", params[1]);
+            std::cout<<val<<std::endl;
+            char* value = to_char(val);
+            strcat(result, value);
+            strcat(result, "OK\nocs>");
+            int res=write(newsock, result, strlen(result));
         }else if( memcmp( params[0], "add", strlen( "add") ) == 0 &&memcmp( params[1], "msid", strlen( "msid") ) == 0 ) {
             //char result[1024];
             bzero(result, 1024);
@@ -246,6 +258,11 @@ void *handlecommand(void *sock){
             //char result[1024];
             bzero(result, 1024);
             rocksdb::Status status = db->Delete(rocksdb::WriteOptions(),params[2]);
+           char* info="_usage";
+            char rarinfo[strlen(params[2])+strlen(info)];
+            strcpy(rarinfo,params[2]); // copy string one into the result.
+            strcat(rarinfo,info); // append string two to the result.
+            status = db->Delete(rocksdb::WriteOptions(),rarinfo);
             strcat(result, "OK\nocs>");
             int res=write(newsock, result, strlen(result));
         }else if( memcmp( params[0], "show", strlen( "show") ) == 0 &&memcmp( params[1], "msid", strlen( "msid") ) == 0 ) {
@@ -268,6 +285,58 @@ void *handlecommand(void *sock){
             strcat(result, value);
             strcat(result, "\nocs>");
             int res=write(newsock, result, strlen(result));
+        }else if( memcmp( params[0], "delac", strlen( "delac") ) == 0) {
+            //            char* msid=params[2];
+            //            remove_escape(msid);
+            //            printf("show msid %s\n",msid);
+            char* info="_usage";
+            char rarinfo[strlen(params[1])+strlen(info)];
+            strcpy(rarinfo,params[1]); // copy string one into the result.
+            strcat(rarinfo,info); // append string two to the result.
+            
+            std::string val,val1;
+            rocksdb::Status status = db->Get(rocksdb::ReadOptions(),rarinfo, &val);
+            std::cout<<val<<std::endl;
+            char json[val.size()+1];//as 1 char space for null is also required
+            strcpy(json, val.c_str());
+            Document dom;
+            //printf("Original json:\n%s\n", json);
+            char buffer[sizeof(json)];
+            memcpy(buffer, json, sizeof(json));
+            if (dom.ParseInsitu<0>(buffer).HasParseError())
+                printf("error parsing\n");
+            Value& a = dom["rg"];
+            assert(a.IsArray());
+            for (rapidjson::SizeType i = 0; i < a.Size(); i++)
+            {
+                const Value& c = a[i];
+                for (Value::ConstMemberIterator itr = c.MemberBegin();
+                     itr != c.MemberEnd(); ++itr)
+                {
+                    const char* rgkey=itr->name.GetString();
+                    printf("Type of member %s is %i\n",
+                           itr->name.GetString(), itr->value.GetInt());
+                    if(strcmp(rgkey, params[2]) == 0){
+                        a.Erase(&c);
+                    }
+                }
+                
+            }
+            //printf("Updated json:\n");
+            
+            // Convert JSON document to string
+            StringBuffer strbuf;
+            Writer<StringBuffer> writer(strbuf);
+            dom.Accept(writer);
+            // string str = buffer.GetString();
+            //printf("--\n%s\n--\n", strbuf.GetString());
+            status = db->Put(rocksdb::WriteOptions(),rarinfo, strbuf.GetString());
+            //char result[1024];
+            bzero(result, 1024);
+            strcat(result, to_char(strbuf.GetString()));
+            strcat(result, "\nocs>");
+            int res=write(newsock, result, strlen(result));
+            
         }else if( memcmp( params[0], "delrg", strlen( "delrg") ) == 0) {
 //            char* msid=params[2];
 //            remove_escape(msid);
@@ -365,6 +434,12 @@ void *handlecommand(void *sock){
 
 void *handle(void *sock){
     int newsock = *(int*)sock;
+    entry e=entry();
+    Callee callee;
+    callee.socket=newsock;
+    callee.db=db;
+    e.connectCallback(&callee);
+    e.db=db;
     char* h=new char[4];
     int n;
     while((n=read(newsock,h,4))>0){
@@ -378,12 +453,6 @@ void *handle(void *sock){
         n = read(newsock,b,l);
         //char* b=new char[l];
         diameter d=diameter(h,b,l);
-        entry e=entry();
-        Callee callee;
-        callee.socket=newsock;
-        callee.db=db;
-        e.connectCallback(&callee);
-        e.db=db;
         
         diameter reply=e.process(d);
         delete b;
