@@ -74,6 +74,99 @@ std::vector<std::string> split(const std::string &s, char delim) {
     split(s, delim, elems);
     return elems;
 }
+
+void entry::getRAR(char* msid,avp* &allavp,int &l,int &total){
+    avputil util=avputil();
+    //get sessionid of the msid
+    char* sesinfo="_ses";
+    char sessinfo[strlen(msid)+strlen(sesinfo)];
+    strcpy(sessinfo,msid); // copy string one into the result.
+    strcat(sessinfo,sesinfo); // append string two to the result.
+    std::string valses;
+    rocksdb::Status status = entry::db->Get(rocksdb::ReadOptions(),sessinfo, &valses);
+    std::cout<<sessinfo<<" == "<<valses<<"=="<<std::endl;
+    
+    char f=0x40;
+    avp sessid=util.encodeString(263, 0, f, valses);
+    avp o=util.encodeString(264,0,f,ORIGIN_HOST);
+    avp realm=util.encodeString(296,0,f,ORIGIN_REALM);
+    //read destination realm
+    std::string peer=split(valses, ';')[0];
+    std::string peer_realm=peer;
+    std::string valrealm;
+    status = entry::db->Get(rocksdb::ReadOptions(),peer_realm.append("_realm"), &valrealm);
+    avp drealm=util.encodeString(283, 0, f, valrealm);
+    avp authappid=util.encodeInt32(258, 0, f, 4);
+    
+    avp dh=util.encodeString(293, 0, f, peer);
+    avp rartype=util.encodeInt32(285, 0, f, 0);
+    l=7;
+    total=o.len+sessid.len+realm.len+authappid.len+dh.len+rartype.len+drealm.len;
+    allavp=new avp[l];
+    allavp[0]=sessid;
+    allavp[1]=o;
+    allavp[2]=realm;
+    allavp[3]=authappid;
+    allavp[4]=dh;
+    allavp[5]=rartype;
+    allavp[6]=drealm;
+}
+diameter entry::createRAR(char* msid){
+    printf("create RAR\n");
+    char* h=new char[4];
+    *h=0x01;
+    avp* allavp=new avp[1];
+    int l,total;
+    getRAR(msid,allavp, l, total);
+    int l_resp=20+total;
+    char *ptr1 = (char*)&l_resp;
+    char l_byte[3];
+    char* lp=l_byte;
+    ptr1=ptr1+2;
+    int i=0;
+    while(i<3){
+        *lp=*ptr1;
+        lp++;
+        ptr1--;
+        i++;
+    }
+    //printf(" lbyte %02X %02X %02X ",l_byte[0],l_byte[1],l_byte[2]);
+    *(h+1)=l_byte[0];
+    *(h+2)=l_byte[1];
+    *(h+3)=l_byte[2];
+    char *b=new char[l_resp-4];
+    
+    *b=0x80;
+    //printf(" ccode %02X %02X %02X ",*d.ccode,*(d.ccode+1),*(d.ccode+2));
+    *(b+1)=0x00;
+    *(b+2)=0x01;
+    *(b+3)=0x02;
+    //printf(" copy ccode %02X %02X %02X \n",body[1],body[2],body[3]);
+    //copy appid hbh e2e to body
+    i=0;
+    while (i<12) {
+        *(b+i+4)=0x00;
+        i++;
+    }
+    b=b+16;
+    for (i=0; i<l; i++) {
+        //copy avp
+        char *temp=allavp[i].val;
+        //allavp[i].dump();
+        //printf("\n");
+        for (int j=0; j<allavp[i].len; j++) {
+            *b=*temp;
+            b++;
+            temp++;
+        }
+        delete allavp[i].val;
+    }
+    delete allavp;
+    b=b-l_resp+4;
+    diameter answer=diameter(h,b,l_resp-4);
+    //answer.dump();
+    return answer;
+}
 void getDWA(avp* &allavp,int &l,int &total){
     avputil util=avputil();
     char f=0x40;

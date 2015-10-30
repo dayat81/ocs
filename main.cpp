@@ -193,7 +193,7 @@ char* to_char(const std::string& string)
 int getsocketid(char* msid){
     //get session id
     std::string val;
-    strcat(msid, "_sess");
+    strcat(msid, "_ses");
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(),msid, &val);
     std::cout<<val<<std::endl;
     char* peer=strtok(to_char(val), "#;");
@@ -258,12 +258,37 @@ void *handlecommand(void *sock){
             //char result[1024];
             bzero(result, 1024);
             rocksdb::Status status = db->Delete(rocksdb::WriteOptions(),params[2]);
-           char* info="_usage";
+            char* info="_usage";
             char rarinfo[strlen(params[2])+strlen(info)];
             strcpy(rarinfo,params[2]); // copy string one into the result.
             strcat(rarinfo,info); // append string two to the result.
             status = db->Delete(rocksdb::WriteOptions(),rarinfo);
             strcat(result, "OK\nocs>");
+            int res=write(newsock, result, strlen(result));
+        }else if (memcmp( params[0], "rar", strlen( "rar") ) == 0){
+            //printf("send rar to %s \n",params[1]);
+            //getrar here
+            entry e=entry();
+            e.db=db;
+            char* msg;
+            diameter reply=e.createRAR(params[1]);
+            char resp[reply.len+4];
+            char* r=resp;
+            reply.compose(r);
+            
+            //find socket here
+            int socketmsid=getsocketid(params[1]);
+            
+            int w = write(socketmsid,resp,reply.len+4);
+            if(w<=0){
+                //fail write
+                msg="rar is failed";
+            }else{
+                msg="rar is sent";
+            }
+            bzero(result, 1024);
+            strcat(result, msg);
+            strcat(result, "\nocs>");
             int res=write(newsock, result, strlen(result));
         }else if( memcmp( params[0], "show", strlen( "show") ) == 0 &&memcmp( params[1], "msid", strlen( "msid") ) == 0 ) {
             //char result[1024];

@@ -118,9 +118,12 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
         std::cout<<msidstring<<std::endl;
         std::string msidusageinfo=msidstring;
         msidusageinfo.append("_usage");
+    std::string msidsesinfo=msidstring;
+    msidsesinfo.append("_ses");
         //store sessid,msid
         
     rocksdb::Status status;
+    status = db->Put(rocksdb::WriteOptions(), msidsesinfo, sessidval);
     std::string val;
     status = db->Get(rocksdb::ReadOptions(), msidstring, &val);
     std::string slc;
