@@ -21,6 +21,7 @@ public:
     //int64_t decodeAsInt64(avp a);
     
     avp getAVP(int acode,int vcode,avp a);
+avp getAVP(int acode,int vcode,avp a,int i);
     
     avp encodeString(int acode,int vcode,char flags,std::string value);
     avp encodeInt32(int acode,int vcode,char flags,int value);

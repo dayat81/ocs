@@ -62,6 +62,7 @@ void logic::getResult(diameter d,avp* &allavp,int &l,int &total){
 void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
     int scale=1000000;
     int slice=1024000;
+    int tslice=30;
     avputil util=avputil();
     avp cca_sessid=d.copyAVP(263, 0);
     std::string sessidval="";
@@ -128,8 +129,13 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
     status = db->Get(rocksdb::ReadOptions(), msidstring, &val);
     std::string slc;
     status = db->Get(rocksdb::ReadOptions(),"slice", &slc);
+    std::string tslc;
+    status = db->Get(rocksdb::ReadOptions(),"tslice", &tslc);
     if(slc!=""){
         slice=stoi(slc);
+    }
+    if(tslc!=""){
+	tslice=stoi(tslc);
     }
     bool profilefound=false;
     if(val==""){
@@ -154,6 +160,7 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
             if (mscc.len>0) {
                 avp rsu=util.getAVP(437, 0, mscc);
                 avp usu=util.getAVP(446, 0, mscc);
+		avp usu1=util.getAVP(446, 0, mscc,2);
                 avp rg=util.getAVP(432, 0, mscc);
                 if(rg.len>0){
                     rgnum=util.decodeAsInt(rg);
@@ -221,8 +228,13 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
                     //======
                     //cek usage report
                     if(usu.len>0){
-                        avp total=util.getAVP(421, 0, usu);
-                        if(total.len>0){
+                        avp total=util.getAVP(420, 0, usu);
+			printf("total.len usu %i\n", total.len);
+			if(total.len<0){
+			     total=util.getAVP(420, 0, usu1);
+			     printf("total1.len %i\n", total.len);
+			}
+                        if(total.len>0){			    
                             printf("usage %lli\n", totalnum);
                             totalnum=totalnum+util.decodeAsInt(total);
                             //get prev usage in database
@@ -306,13 +318,14 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
                             int64_t grant=scale*quota-totalnum;
                             printf("grant: %lli, slice: %i\n",grant,slice);
                             if(grant>0){
-                                if(grant>slice){
+                                if(grant>tslice){
                                     //create octet avp
                                     avp grantvol = util.encodeInt64(421, 0, f, slice);
+				    avp granttime=util.encodeInt32(420, 0, f, tslice);
                                     //grantvol.dump();
                                     //printf("\n");
-                                    avp* listavp[1]={&grantvol};
-                                    avp gsu=util.encodeAVP(431, 0, f, listavp, 1);
+                                    avp* listavp[2]={&grantvol,&granttime};
+                                    avp gsu=util.encodeAVP(431, 0, f, listavp, 2);
                                     //gsu.dump();
                                     avp rgrespon=util.encodeInt32(432, 0, f, rgnum);
                                     avp sidrespon=util.encodeInt32(439, 0, f, rgnum);
@@ -334,11 +347,12 @@ void logic::getCCA(diameter d,avp* &allavp,int &l,int &total){
                                     avp* fuilist[2]={&rs,&fua};
                                     avp fui=util.encodeAVP(430, 0, f, fuilist, 2);
                                     //create octet avp
-                                    avp grantvol = util.encodeInt64(421, 0, f, grant);
+                                    avp grantvol = util.encodeInt64(421, 0, f, slice);
+				    avp granttime=util.encodeInt32(420, 0, f, grant);
                                     //grantvol.dump();
                                     //printf("\n");
-                                    avp* listavp[1]={&grantvol};
-                                    avp gsu=util.encodeAVP(431, 0, f, listavp, 1);
+                                    avp* listavp[2]={&grantvol,&granttime};
+                                    avp gsu=util.encodeAVP(431, 0, f, listavp, 2);
                                     //gsu.dump();
                                     avp rgrespon=util.encodeInt32(432, 0, f, rgnum);
                                     avp sidrespon=util.encodeInt32(439, 0, f, rgnum);
